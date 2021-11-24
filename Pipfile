@@ -7,6 +7,13 @@ name = "pypi"
 jumpcutter = {editable = true, path = "."}
 pytest = "*"
 typer = "*"
+numpy = "*"
+scipy = "*"
+pytube = "*"
+audiotsm = "*"
+matplotlib = "*"
+pysimplegui = "*"
+ffmpeg-python = "*"
 
 [dev-packages]
 black = "21.11b1"
@@ -17,7 +24,6 @@ doit = "*"
 pytest = "*"
 nbqa = "*"
 flake8 = "*"
-
 
 [requires]
 python_version = "3.7"
