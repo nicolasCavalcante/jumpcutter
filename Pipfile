@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+jumpcutter = {editable = true, path = "."}
+pytest = "*"
+typer = "*"
+
+[dev-packages]
+black = "21.11b1"
+isort = "*"
+autoflake = "*"
+pre-commit = "*"
+doit = "*"
+pytest = "*"
+nbqa = "*"
+flake8 = "*"
+
+
+[requires]
+python_version = "3.7"
