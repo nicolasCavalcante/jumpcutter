@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import ffmpeg
@@ -12,7 +13,11 @@ from audiotsm.io.wav import WavReader, WavWriter
 from pytube import YouTube
 from scipy.io import wavfile
 
-TEMP_FOLER = Path(__file__).parent / "TEMP"
+TEMP_FOLER = (
+    Path(__file__).parent
+    / "TEMP"
+    / datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
+)
 TEMP_AUDIO = TEMP_FOLER / "audio.wav"
 
 
@@ -172,7 +177,7 @@ def downloadYoutubeFile(url):
 def create_TEMP_FOLER():
     if TEMP_FOLER.exists():
         shutil.rmtree(TEMP_FOLER)
-    TEMP_FOLER.mkdir(exist_ok=True)
+    TEMP_FOLER.mkdir(exist_ok=True, parents=True)
 
 
 def get_frame_rate(input_file: Path, frame_rate: float):
@@ -200,6 +205,36 @@ def extract_audio(input_file, sample_rate):
     return sample_rate, audio_data
 
 
+def zoom_factory(ax, x, y, base_scale=2.0):
+    def zoom_fun(event):
+        cur_xlim = ax.get_xlim()
+        xdata = event.xdata
+        if event.button == "up":
+            scale_factor = 1 / base_scale
+        elif event.button == "down":
+            scale_factor = base_scale
+        else:
+            scale_factor = 1
+            print(event.button)
+        newlim = np.array(cur_xlim)
+        newlim = xdata + (newlim - xdata) * scale_factor
+
+        ax.set_xlim(newlim)
+        line = ax.lines[0]
+        newx = np.linspace(*newlim, 1000)
+        newy = np.interp(newx, x, y)
+        line.set_xdata(newx)
+        line.set_ydata(newy)
+        plt.draw()
+
+    ax.plot(x, y)
+    ax.set_ylim(y.min(), y.max())
+    fig = ax.get_figure()
+    fig.canvas.mpl_connect("scroll_event", zoom_fun)
+
+    return zoom_fun
+
+
 def pick_threshold(sample_rate, audio_data):
     def onclick(event):
         print(
@@ -217,10 +252,13 @@ def pick_threshold(sample_rate, audio_data):
         plt.close()
 
     tresh = []
-    data_x = np.arange(audio_data.shape[0])[::sample_rate] / sample_rate
+    skiping = sample_rate // 500
+    data_x = np.arange(audio_data.shape[0])[::skiping] / sample_rate
+    audio_data = abs(audio_data.T[0])[::skiping]
+    audio_data = audio_data / audio_data.max()
     fig, ax = plt.subplots()
-    audio_data = abs(audio_data)[::sample_rate]
-    plt.plot(data_x, audio_data / audio_data.max())
+    scale = 2
+    zoom_factory(ax, data_x, audio_data, base_scale=scale)
     fig.canvas.mpl_connect("button_press_event", onclick)
     plt.show()
     return tresh[0]

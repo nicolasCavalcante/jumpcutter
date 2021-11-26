@@ -82,7 +82,7 @@ def main():
         "-SOUNDED SPEED-": (
             "--sounded-speed",
             "Sounded Speed",
-            1.00,
+            1.50,
             None,
             "the speed that sounded (spoken) frames should be played at."
             " Typically 1.",
@@ -100,7 +100,7 @@ def main():
         "-FRAME MARGIN-": (
             "--frame-margin",
             "Frame Margin",
-            1,
+            3,
             None,
             "some silent frames adjacent to sounded frames are included to"
             " provide context. How many frames on either the side of speech"
@@ -161,7 +161,7 @@ def main():
         [
             sg.Checkbox(
                 "Pick treshold",
-                default=False,
+                default=True,
                 key="-PICK TRESH-",
                 tooltip="Pick threashold from looking at soundwave",
             )
