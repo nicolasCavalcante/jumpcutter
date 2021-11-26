@@ -13,10 +13,8 @@ from audiotsm.io.wav import WavReader, WavWriter
 from pytube import YouTube
 from scipy.io import wavfile
 
-TEMP_FOLER = (
-    Path(__file__).parent
-    / "TEMP"
-    / datetime.now().strftime("%m-%d-%Y-%H-%M-%S")
+TEMP_FOLER = Path(__file__).with_name("TEMP") / datetime.now().strftime(
+    "%m-%d-%Y-%H-%M-%S"
 )
 TEMP_AUDIO = TEMP_FOLER / "audio.wav"
 
@@ -70,10 +68,15 @@ def main(
     Modifies a video file to play at different speeds when there is sound vs.
     silence.
     """
-    input_file = Path(downloadYoutubeFile(url) if url else input_file)
-    output_file = Path(output_file if output_file else input_file)
-    output_file = output_file.parent / (
-        output_file.stem + "_ALTERED" + output_file.suffix
+    input_file: Path = Path(
+        downloadYoutubeFile(url) if url else input_file
+    ).resolve()
+    output_file = Path(
+        output_file
+        if output_file
+        else input_file.with_name(
+            input_file.stem + "_ALTERED" + input_file.suffix
+        )
     )
     audio_fade_envelope_size = 400
     create_TEMP_FOLER()
