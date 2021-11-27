@@ -1,7 +1,5 @@
 import os
 import shutil
-import subprocess
-from datetime import datetime
 from pathlib import Path
 
 import ffmpeg
@@ -13,10 +11,7 @@ from audiotsm.io.wav import WavReader, WavWriter
 from pytube import YouTube
 from scipy.io import wavfile
 
-TEMP_FOLER = Path(__file__).with_name("TEMP") / datetime.now().strftime(
-    "%m-%d-%Y-%H-%M-%S"
-)
-TEMP_AUDIO = TEMP_FOLER / "audio.wav"
+TEMP_FOLER = Path(__file__).with_name("TEMP")
 
 
 def main(
@@ -79,10 +74,19 @@ def main(
         )
     )
     audio_fade_envelope_size = 400
-    create_TEMP_FOLER()
+    temp_folder, temp_audio = create_TEMP_FOLER(input_file)
     frame_rate = get_frame_rate(input_file, frame_rate)
     assert frame_rate > 0, "must be greater then zero"
-    sample_rate, audio_data = extract_audio(input_file, sample_rate)
+
+    # extract audio
+    print(f"Extracting audio file:{temp_audio}")
+    ffmpeg.input(input_file.as_posix()).output(
+        temp_audio.as_posix(), ab="160k", ac=2, ar=str(int(sample_rate))
+    ).run(capture_stdout=True, capture_stderr=True)
+    print()
+    in_sample_rate, audio_data = wavfile.read(temp_audio)
+    sample_rate = in_sample_rate if in_sample_rate else sample_rate
+
     sample_count = audio_data.shape[0]
     max_volume = abs(audio_data).max()
     samples_per_frame = sample_rate / frame_rate
@@ -108,7 +112,10 @@ def main(
         sounded_speed,
     )
 
-    extract_frames_from_input_file(input_file, frame_quality)
+    ffmpeg.input(input_file.as_posix()).output(
+        (temp_folder / "frame%06d.jpg").as_posix(),
+        **{"qscale:v": frame_quality},
+    ).run()
 
     outputaudio_data = np.zeros((0, audio_data.shape[1]))
     outputPointer = 0
@@ -130,7 +137,7 @@ def main(
             )
         ]
         alteredaudio_data, length = change_audio_speed(
-            audioChunk, sample_rate, speed
+            audioChunk, sample_rate, speed, temp_folder
         )
         endPointer = outputPointer + length
         outputaudio_data = np.concatenate(
@@ -152,19 +159,25 @@ def main(
             startFrame,
             speed,
             lastExistingFrame,
+            temp_folder,
         )
         outputPointer = endPointer
 
-    wavfile.write(f"{TEMP_FOLER}/audioNew.wav", sample_rate, outputaudio_data)
-
-    command = (
-        f"ffmpeg -y -framerate {frame_rate} -i "
-        f"{TEMP_FOLER}/newFrame%06d.jpg -i {TEMP_FOLER}/audioNew.wav"
-        f" -strict -2 {output_file}"
+    wavfile.write(
+        (temp_folder / "audioNew.wav").as_posix(),
+        sample_rate,
+        outputaudio_data,
     )
-    subprocess.call(command, shell=True)
 
-    delete_path(TEMP_FOLER)
+    input_video = ffmpeg.input(
+        (temp_folder / "newFrame%06d.jpg").as_posix(), framerate=frame_rate
+    )
+    input_audio = ffmpeg.input((temp_folder / "audioNew.wav").as_posix())
+    ffmpeg.concat(input_video, input_audio, v=1, a=1).output(
+        output_file.as_posix(), strict="-2"
+    ).run()
+
+    delete_path(temp_folder)
 
 
 def downloadYoutubeFile(url):
@@ -177,10 +190,13 @@ def downloadYoutubeFile(url):
     return newname
 
 
-def create_TEMP_FOLER():
-    if TEMP_FOLER.exists():
-        shutil.rmtree(TEMP_FOLER)
-    TEMP_FOLER.mkdir(exist_ok=True, parents=True)
+def create_TEMP_FOLER(input_file: Path):
+    temp_folder = TEMP_FOLER / input_file.stem
+    if temp_folder.exists():
+        shutil.rmtree(temp_folder)
+    temp_folder.mkdir(exist_ok=True, parents=True)
+    temp_audio = temp_folder / "audio.wav"
+    return temp_folder, temp_audio
 
 
 def get_frame_rate(input_file: Path, frame_rate: float):
@@ -192,20 +208,6 @@ def get_frame_rate(input_file: Path, frame_rate: float):
         stream = streams[0]
         frame_rate = (int(stream["nb_frames"]) + 1) / float(stream["duration"])
     return frame_rate
-
-
-def extract_audio(input_file, sample_rate):
-    print(f"Extracting audio file:{TEMP_AUDIO}")
-    command = (
-        f"ffmpeg -i {input_file} -ab 160k -ac 2"
-        f" -ar {sample_rate} -vn {TEMP_AUDIO}"
-    )
-    print(f"  - Cmd:{command}")
-    subprocess.call(command, shell=True)
-    print()
-    in_sample_rate, audio_data = wavfile.read(TEMP_AUDIO)
-    sample_rate = in_sample_rate if in_sample_rate else sample_rate
-    return sample_rate, audio_data
 
 
 def zoom_factory(ax, x, y, base_scale=2.0):
@@ -310,17 +312,9 @@ def compute_speed_change_list(
     return chunks
 
 
-def extract_frames_from_input_file(input_file, frame_quality):
-    command = (
-        f"ffmpeg -i {input_file} -qscale:v {frame_quality} "
-        f"{TEMP_FOLER}/frame%06d.jpg -hide_banner"
-    )
-    subprocess.call(command, shell=True)
-
-
-def change_audio_speed(audioChunk, sample_rate, speed):
-    startWavFile = f"{TEMP_FOLER}/tempStart.wav"
-    endWavFile = f"{TEMP_FOLER}/tempEnd.wav"
+def change_audio_speed(audioChunk, sample_rate, speed, temp_folder):
+    startWavFile = (temp_folder / "tempStart.wav").as_posix()
+    endWavFile = (temp_folder / "tempEnd.wav").as_posix()
     wavfile.write(startWavFile, sample_rate, audioChunk)
     with WavReader(startWavFile) as reader:
         with WavWriter(
@@ -360,21 +354,22 @@ def copy_frames_output_based_on_speed(
     startFrame,
     speed,
     lastExistingFrame,
+    temp_folder,
 ):
     startOutputFrame = int(np.ceil(outputPointer / samples_per_frame))
     endOutputFrame = int(np.ceil(endPointer / samples_per_frame))
     for outputFrame in range(startOutputFrame, endOutputFrame):
         inputFrame = int(startFrame + speed * (outputFrame - startOutputFrame))
-        didItWork = copy_frame(inputFrame, outputFrame, TEMP_FOLER)
+        didItWork = copy_frame(inputFrame, outputFrame, temp_folder)
         if didItWork:
             lastExistingFrame = inputFrame
         else:
-            copy_frame(lastExistingFrame, outputFrame, TEMP_FOLER)
+            copy_frame(lastExistingFrame, outputFrame, temp_folder)
 
 
-def copy_frame(inputFrame, outputFrame, TEMP_FOLER):
-    src = f"{TEMP_FOLER}/frame{inputFrame+1:06d}.jpg"
-    dst = f"{TEMP_FOLER}/newFrame{outputFrame+1:06d}.jpg"
+def copy_frame(inputFrame, outputFrame, temp_folder):
+    src = (temp_folder / f"frame{inputFrame+1:06d}.jpg").as_posix()
+    dst = (temp_folder / f"newFrame{outputFrame+1:06d}.jpg").as_posix()
     if not os.path.isfile(src):
         return False
     shutil.copyfile(src, dst)
