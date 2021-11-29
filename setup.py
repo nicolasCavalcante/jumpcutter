@@ -14,7 +14,10 @@ setup(
     name="jumpcutter",
     description="Automatically edits vidx. Explanation here: https://www.youtube.com/watch?v=DQ8orIurGxw",
     entry_points={
-        "console_scripts": ["jumpcutter=jumpcutter.cli:app"],
+        "console_scripts": [
+            "jumpcutter=jumpcutter.cli:app",
+            "jumpcutter_gui=jumpcutter.gui:gui",
+        ],
     },
     author="Nicolas Garcia Cavalcante",
     author_email="nicolasgcavalcante@gmail.com",
