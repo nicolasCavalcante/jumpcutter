@@ -24,6 +24,7 @@ doit = "*"
 pytest = "*"
 nbqa = "*"
 flake8 = "*"
+pyinstaller = "*"
 
 [requires]
 python_version = "3.7"

@@ -1,4 +1,5 @@
 import platform
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -22,9 +23,9 @@ def task_format():
             "actions": [
                 (
                     "autoflake -i -r --expand-star-imports"
-                    + " --remove-all-unused-imports"
-                    + " --remove-duplicate-keys --remove-unused-variables %s"
-                    + " %s isort %s %s black --line-length 79 %s"
+                    " --remove-all-unused-imports"
+                    " --remove-duplicate-keys --remove-unused-variables %s"
+                    " %s isort %s %s black --line-length 79 %s"
                 )
                 % (filepath, SEP, filepath, SEP, filepath)
             ],
@@ -77,3 +78,64 @@ def task_uninstall():
         "actions": [lambda: syscmd("pip uninstall jumpcutter -y")],
         "verbosity": 2,
     }
+
+
+def task_build():
+    """Cria os executaveis, gui.exe"""
+    SPEC = Path("spec.spec")
+    PY = Path("spec.py")
+
+    def create_spec():
+        with open(PY) as f:
+            lines = f.read().splitlines()
+        out = []
+        i = 0
+        while i < len(lines):
+            if lines[i] == "# EXCLUDE":
+                while lines[i] != "# INCLUDE":
+                    i += 1
+                    if i == len(lines):
+                        break
+            else:
+                out.append(lines[i])
+            i += 1
+        SPEC.touch(exist_ok=True)
+        with open(SPEC, "w") as f:
+            f.write("\n".join(out))
+
+    def move_build(dest: str):
+        dest = Path(dest)
+        for folder in ["build", "dist"]:
+            if (dest / folder).exists():
+                shutil.rmtree(dest / folder)
+            shutil.move(SELF_PATH / folder, dest / folder)
+
+    yield {
+        "name": "create_spec",
+        "actions": [create_spec],
+        "verbosity": 2,
+        "targets": [SPEC],
+    }
+    yield {
+        "name": "build",
+        "actions": [lambda: syscmd("pyinstaller " + str(SPEC))],
+        "verbosity": 2,
+        "task_dep": ["build:create_spec"],
+        "targets": ["dist", "build"],
+    }
+    # yield {
+    #     "name": "movedir",
+    #     "actions": [(move_build,)],
+    #     "params": [
+    #         {
+    #             "name": "dest",
+    #             "short": "d",
+    #             "long": "dest",
+    #             "default": (
+    #                 SELF_PATH.with_name(SELF_PATH.name + "_exec")
+    #             ).as_posix(),
+    #         }
+    #     ],
+    #     "verbosity": 2,
+    #     "task_dep": ["build:build"],
+    # }

@@ -1,6 +1,6 @@
 import inspect
 import sys
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, freeze_support
 from typing import IO
 
 import PySimpleGUI as sg
@@ -131,4 +131,5 @@ def run_command(values, queue: Queue):
 
 
 if __name__ == "__main__":
+    freeze_support()
     gui()
