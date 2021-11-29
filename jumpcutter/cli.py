@@ -175,7 +175,7 @@ def main(
     input_audio = ffmpeg.input((temp_folder / "audioNew.wav").as_posix())
     ffmpeg.concat(input_video, input_audio, v=1, a=1).output(
         output_file.as_posix(), strict="-2"
-    ).run()
+    ).overwrite_output().run()
 
     delete_path(temp_folder)
 
