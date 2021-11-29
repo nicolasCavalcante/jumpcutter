@@ -1,9 +1,19 @@
 import inspect
+import sys
 from multiprocessing import Process, Queue
+from typing import IO
 
 import PySimpleGUI as sg
 
 import jumpcutter.cli as cli
+
+
+class RedirectProcess(IO):
+    def __init__(self, queue: Queue):
+        self.queue = queue
+
+    def write(self, string):
+        self.queue.put(string)
 
 
 def gui():
@@ -55,7 +65,7 @@ def gui():
     window = sg.Window("Jump Cutter", layout, finalize=True)
     while True:
         event, values = window.read(100)
-        if not queue.empty():
+        while not queue.empty():
             element = queue.get()
             if element == "Done":
                 window["Start"].update(
@@ -63,6 +73,9 @@ def gui():
                 )
                 print("Process Done!")
                 window.refresh()
+            else:
+                if len(element) > 1:
+                    print(element + "\n")
         if event == sg.WIN_CLOSED or event == "Exit":
             break
         elif event == "Start":
@@ -111,6 +124,8 @@ def FText(
 
 
 def run_command(values, queue: Queue):
+    sys.stdout = RedirectProcess(queue)
+    sys.stderr = sys.stdout
     cli.main(*values)
     queue.put("Done")
 
